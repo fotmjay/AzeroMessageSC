@@ -4,6 +4,7 @@
 #[ink::contract]
 mod azeromessage {
     use ink::prelude::string::String;
+    use ink::prelude::vec::Vec;
 
     #[ink(event)]
     pub struct MessageSent {
@@ -16,7 +17,9 @@ mod azeromessage {
     #[ink(storage)]
     pub struct AzeroMessage {
         owner: AccountId,
-        fees: u128
+        standard_fee: u128,
+        bulk_base_fee: u128,
+        bulk_var_fee: u128
     }
 
     #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
@@ -37,7 +40,9 @@ mod azeromessage {
             let caller = Self::env().caller();
             Self {
                 owner: caller,
-                fees: 50_000_000_000
+                standard_fee: 50_000_000_000,
+                bulk_base_fee: 5_000_000_000_000,
+                bulk_var_fee: 10_000_000_000,
             }
         }
 
@@ -45,19 +50,39 @@ mod azeromessage {
         #[ink(message, payable)]
         pub fn send_message(&mut self, address: AccountId, message: String, encrypted: bool ) -> Result<()> {
             let _transferred = self.env().transferred_value();
-            if _transferred < self.fees {
+            if _transferred < self.standard_fee {
                 return Err(Error::InsufficientTransfer);
             }
-
+            
             Self::env().emit_event(MessageSent {
                 from: self.env().caller(),
                 to: address,
                 message: message,
-                encrypted: encrypted
+                encrypted: encrypted,
             });
             Ok(())
             
         }
+        
+        /// Function to bulk emit message events on the blockchain.
+        #[ink(message, payable)]
+        pub fn bulk_send_message(&mut self, addresses: Vec<AccountId>, message: String ) -> Result<()> {
+            let _transferred = self.env().transferred_value();
+            let amount_required = self.bulk_base_fee + self.bulk_var_fee * addresses.len() as u128;
+            if _transferred < amount_required {
+                return Err(Error::InsufficientTransfer);
+            }
+            for address in addresses {
+                Self::env().emit_event(MessageSent {
+                    from: self.env().caller(),
+                    to: address,
+                    message: message.clone(),
+                    encrypted: false
+                })
+            }
+            Ok(())
+        }
+
         /// Function to collect the fees accumulated in the contract.
         #[ink(message)]
         pub fn collect_fees(&mut self) {
@@ -81,12 +106,33 @@ mod azeromessage {
         }
         /// Function to modify the messaging fee of the contract (only usable by current owner)
         #[ink(message)]
-        pub fn modify_fees(&mut self, value: u128) -> Result<()> {
+        pub fn modify_standard_fee(&mut self, value: u128) -> Result<()> {
             let caller = self.env().caller();
             if caller != self.owner {
                 return Err(Error::OnlyOwner);
             } 
-            self.fees = value;
+            self.standard_fee = value;
+            Ok(())        
+        }
+
+        /// Function to modify the messaging fee of the contract (only usable by current owner) (base fee, per address fee)
+        #[ink(message)]
+        pub fn modify_bulk_base_fee(&mut self, value: u128) -> Result<()> {
+            let caller = self.env().caller();
+            if caller != self.owner {
+                return Err(Error::OnlyOwner);
+            } 
+            self.bulk_base_fee = value;
+            Ok(())        
+            
+        }
+        #[ink(message)]
+        pub fn modify_bulk_var_fee(&mut self, value: u128) -> Result<()> {
+            let caller = self.env().caller();
+            if caller != self.owner {
+                return Err(Error::OnlyOwner);
+            } 
+            self.bulk_var_fee = value;
             Ok(())        
         }
 
@@ -96,11 +142,20 @@ mod azeromessage {
             self.owner               
         }
         
-        
         /// Function to query the current messaging fee.
         #[ink(message)]
-        pub fn get_fees(&self) -> u128 {
-            self.fees
+        pub fn get_standard_fee(&self) -> u128 {
+            self.standard_fee
+        }
+        /// Function to query the current bulk base messaging fee.
+        #[ink(message)]
+        pub fn get_bulk_base_fee(&self) -> u128 {
+            self.bulk_base_fee
+        }
+        /// Function to query the current bulk per address messaging fee.
+        #[ink(message)]
+        pub fn get_bulk_var_fee(&self) -> u128 {
+            self.bulk_var_fee
         }
 
     }

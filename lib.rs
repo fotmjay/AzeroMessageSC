@@ -34,14 +34,14 @@ mod azeromessage {
     pub type Result<T> = core::result::Result<T, Error>;
     
     impl AzeroMessage {
-        /// Constructor that initializes the contract with the caller as a owner and fees at 0.05 AZERO.
+        /// Constructor that initializes the contract with the caller as owner and standard fees at 0.05 AZERO, bulk base fee at 5 AZERO and bulk variable fee at 0.01 AZERO.
         #[ink(constructor)]
         pub fn default() -> Self {
             let caller = Self::env().caller();
             Self {
                 owner: caller,
                 standard_fee: 50_000_000_000,
-                bulk_base_fee: 5_000_000_000_000,
+                bulk_base_fee: 3_000_000_000_000,
                 bulk_var_fee: 10_000_000_000,
             }
         }
@@ -89,7 +89,7 @@ mod azeromessage {
             let balance = self.env().balance();
             assert!(balance > 10_000_000_000, "Balance too low to withdraw already!");
 
-            let amount_to_transfer = balance - 10_000_000_000;
+            let amount_to_transfer = balance - 100_000_000;
             self.env().transfer(self.owner,amount_to_transfer).ok();
             
         }
